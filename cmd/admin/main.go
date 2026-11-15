@@ -3,5 +3,5 @@ package main
 import "fmt"
 
 func main() {
-    fmt.Println("Application administrateur")
+	fmt.Println("Application administrateur")
 }
