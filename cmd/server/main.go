@@ -4,34 +4,39 @@ import (
 	"encoding/json"
 	"log"
 	"net/http"
+
+	"ecommerce-go/internal/database"
 )
 
 func main() {
-	// Création du routeur HTTP
-	mux := http.NewServeMux()
 
-	// Route pour tester le serveur
-	mux.HandleFunc("GET /health", healthHandler)
-
-	// Démarrage du serveur
-	log.Println("Serveur démarré sur le port 8080")
-
-	err := http.ListenAndServe(":8080", mux)
-
+	// Connexion à SQLite
+	db, err := database.Open()
 	if err != nil {
 		log.Fatal(err)
 	}
-}
+	defer db.Close()
 
-// Fonction appelée lorsqu'on visite /health
-func healthHandler(w http.ResponseWriter, r *http.Request) {
+	// Routeur HTTP
+	mux := http.NewServeMux()
 
-	w.Header().Set("Content-Type", "application/json")
+	// Route de test
+	mux.HandleFunc("GET /health", func(w http.ResponseWriter, r *http.Request) {
 
-	response := map[string]string{
-		"status":  "ok",
-		"message": "Serveur e-commerce opérationnel",
-	}
+		if err := db.PingContext(r.Context()); err != nil {
+			http.Error(w, "Database unavailable", http.StatusServiceUnavailable)
+			return
+		}
 
-	json.NewEncoder(w).Encode(response)
+		w.Header().Set("Content-Type", "application/json")
+
+		json.NewEncoder(w).Encode(map[string]string{
+			"status":   "ok",
+			"database": "connected",
+		})
+	})
+
+	log.Println("Serveur démarré sur le port 8080")
+
+	log.Fatal(http.ListenAndServe(":8080", mux))
 }
