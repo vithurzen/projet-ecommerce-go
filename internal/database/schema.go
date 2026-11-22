@@ -50,5 +50,25 @@ func InitSchema(db *sql.DB) error {
 		)
 	}
 
+	_, err = db.Exec(`
+		CREATE TABLE IF NOT EXISTS sessions (
+			id INTEGER PRIMARY KEY AUTOINCREMENT,
+
+			user_id INTEGER NOT NULL,
+
+			token_hash TEXT NOT NULL UNIQUE,
+
+			expires_at TEXT NOT NULL,
+
+			FOREIGN KEY (user_id)
+				REFERENCES users(id)
+				ON DELETE CASCADE
+		);
+	`)
+
+	if err != nil {
+		return fmt.Errorf("creation table sessions : %w", err)
+	}
+
 	return nil
 }
