@@ -5,6 +5,7 @@ import (
 	"log"
 	"net/http"
 
+	"ecommerce-go/internal/auth"
 	"ecommerce-go/internal/database"
 )
 
@@ -18,13 +19,14 @@ func main() {
 	defer db.Close()
 
 	if err := database.InitSchema(db); err != nil {
-    log.Fatal("Erreur initialisation de la base :", err)
-}
+		log.Fatal("Erreur initialisation de la base :", err)
+	}
 
-log.Println("Table users prête")
+	log.Println("Table users prête")
 
 	// Routeur HTTP
 	mux := http.NewServeMux()
+	auth.RegisterRoutes(mux, db)
 
 	// Route de test
 	mux.HandleFunc("GET /health", func(w http.ResponseWriter, r *http.Request) {
