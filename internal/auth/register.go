@@ -3,83 +3,120 @@ package auth
 import (
 	"database/sql"
 	"encoding/json"
+	"log"
 	"net/http"
 	"net/mail"
+	"os"
 	"strings"
+	"time"
 
 	"golang.org/x/crypto/bcrypt"
 )
 
-// Données reçues lors de l'inscription
 type RegisterRequest struct {
 	Email    string `json:"email"`
 	Password string `json:"password"`
 }
 
-// Ajouter la route d'inscription au serveur
 func RegisterRoutes(mux *http.ServeMux, db *sql.DB) {
 	mux.HandleFunc("POST /api/auth/register", func(w http.ResponseWriter, r *http.Request) {
-
 		var input RegisterRequest
 
-		// Lire le JSON envoyé par le client
 		r.Body = http.MaxBytesReader(w, r.Body, 4096)
-		err := json.NewDecoder(r.Body).Decode(&input)
-		if err != nil {
-			http.Error(w, "JSON invalide", http.StatusBadRequest)
+
+		if err := json.NewDecoder(r.Body).Decode(&input); err != nil {
+			http.Error(w, "JSON invalide", 400)
 			return
 		}
 
-		// Vérifier l'email
 		email := strings.ToLower(strings.TrimSpace(input.Email))
-		adresse, err := mail.ParseAddress(email)
-		if err != nil || adresse.Address != email {
-			http.Error(w, "Email invalide", http.StatusBadRequest)
+
+		address, err := mail.ParseAddress(email)
+		if err != nil || address.Address != email {
+			http.Error(w, "Email invalide", 400)
 			return
 		}
 
-		// Vérifier le mot de passe
 		if len(input.Password) < 8 || len(input.Password) > 72 {
-			http.Error(w, "Mot de passe : 8 à 72 octets", http.StatusBadRequest)
+			http.Error(w, "Mot de passe invalide (8 à 72 octets)", 400)
 			return
 		}
 
 		// Hacher le mot de passe
-		hash, err := bcrypt.GenerateFromPassword(
+		passwordHash, err := bcrypt.GenerateFromPassword(
 			[]byte(input.Password),
 			bcrypt.DefaultCost,
 		)
 		if err != nil {
-			http.Error(w, "Erreur serveur", http.StatusInternalServerError)
+			http.Error(w, "Erreur serveur", 500)
 			return
 		}
 
-		// Ajouter le compte dans SQLite
-		result, err := db.ExecContext(
-			r.Context(),
-			`INSERT INTO users (email, password_hash, role, confirmed)
-             VALUES (?, ?, 'client', 0)
-             ON CONFLICT(email) DO NOTHING`,
-			email, string(hash),
-		)
+		// Générer le code de confirmation
+		code, codeHash, err := generateConfirmationCode()
+		if err != nil {
+			http.Error(w, "Erreur serveur", 500)
+			return
+		}
+
+		// Insérer utilisateur et code dans une transaction
+		tx, err := db.BeginTx(r.Context(), nil)
+		if err != nil {
+			http.Error(w, "Erreur serveur", 500)
+			return
+		}
+		defer tx.Rollback()
+
+		result, err := tx.ExecContext(r.Context(), `
+            INSERT INTO users (email, password_hash, role, confirmed)
+            VALUES (?, ?, 'client', 0)
+            ON CONFLICT(email) DO NOTHING
+        `, email, string(passwordHash))
 
 		if err != nil {
-			http.Error(w, "Erreur base de données", http.StatusInternalServerError)
+			http.Error(w, "Erreur base de données", 500)
 			return
 		}
 
-		// Vérifier si cet email existe déjà
-		count, err := result.RowsAffected()
+		affected, err := result.RowsAffected()
 		if err != nil {
-			http.Error(w, "Erreur serveur", http.StatusInternalServerError)
+			http.Error(w, "Erreur serveur", 500)
 			return
 		}
-		if count == 0 {
-			http.Error(w, "Email déjà utilisé", http.StatusConflict)
+		if affected == 0 {
+			http.Error(w, "Email déjà utilisé", 409)
 			return
 		}
 
-		// Réponse après inscription
+		userID, err := result.LastInsertId()
+		if err != nil {
+			http.Error(w, "Erreur serveur", 500)
+			return
+		}
+
+		expiresAt := time.Now().UTC().Add(15 * time.Minute)
+
+		_, err = tx.ExecContext(r.Context(), `
+            INSERT INTO confirmation_codes
+                (user_id, code_hash, expires_at)
+            VALUES (?, ?, ?)
+        `, userID, codeHash, expiresAt.Format(time.RFC3339))
+
+		if err != nil {
+			http.Error(w, "Erreur création du code", 500)
+			return
+		}
+
+		if err := tx.Commit(); err != nil {
+			http.Error(w, "Erreur serveur", 500)
+			return
+		}
+
+		// Uniquement pour les tests locaux
+		if os.Getenv("APP_ENV") == "development" {
+			log.Printf("DEV - Code de confirmation pour %s : %s", email, code)
+		}
+
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusCreated)
 
@@ -87,4 +124,7 @@ func RegisterRoutes(mux *http.ServeMux, db *sql.DB) {
 			"message": "Compte créé, confirmation nécessaire",
 		})
 	})
+
+	// Enregistrer la route de confirmation
+	mux.HandleFunc("POST /api/auth/confirm", confirmHandler(db))
 }

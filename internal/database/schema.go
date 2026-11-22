@@ -31,5 +31,24 @@ func InitSchema(db *sql.DB) error {
 		return fmt.Errorf("creation table users : %w", err)
 	}
 
+	_, err = db.Exec(`
+		CREATE TABLE IF NOT EXISTS confirmation_codes (
+			user_id INTEGER PRIMARY KEY,
+			code_hash TEXT NOT NULL UNIQUE,
+			expires_at TEXT NOT NULL,
+
+			FOREIGN KEY (user_id)
+				REFERENCES users(id)
+				ON DELETE CASCADE
+		);
+	`)
+
+	if err != nil {
+		return fmt.Errorf(
+			"creation table confirmation_codes : %w",
+			err,
+		)
+	}
+
 	return nil
 }
