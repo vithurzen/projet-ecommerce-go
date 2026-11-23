@@ -50,5 +50,45 @@ func InitSchema(db *sql.DB) error {
 		)
 	}
 
+	_, err = db.Exec(`
+		CREATE TABLE IF NOT EXISTS orders (
+			id INTEGER PRIMARY KEY AUTOINCREMENT,
+			reference TEXT NOT NULL UNIQUE,
+			user_id INTEGER NOT NULL,
+			status TEXT NOT NULL DEFAULT 'pending'
+				CHECK (status IN ('pending', 'paid', 'shipping', 'delivered', 'cancelled')),
+			cancel_reason TEXT NOT NULL DEFAULT '',
+			created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+			FOREIGN KEY (user_id)
+				REFERENCES users(id)
+				ON DELETE CASCADE
+		);
+	`)
+
+	if err != nil {
+		return fmt.Errorf("creation table orders : %w", err)
+	}
+
+	_, err = db.Exec(`
+		CREATE TABLE IF NOT EXISTS order_items (
+			order_id INTEGER NOT NULL,
+			product_id INTEGER NOT NULL,
+			product_name TEXT NOT NULL,
+			unit_price_ttc REAL NOT NULL CHECK (unit_price_ttc >= 0),
+			quantity INTEGER NOT NULL CHECK (quantity > 0),
+
+			PRIMARY KEY (order_id, product_id),
+
+			FOREIGN KEY (order_id)
+				REFERENCES orders(id)
+				ON DELETE CASCADE
+		);
+	`)
+
+	if err != nil {
+		return fmt.Errorf("creation table order_items : %w", err)
+	}
+
 	return nil
 }
