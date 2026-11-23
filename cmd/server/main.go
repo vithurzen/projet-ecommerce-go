@@ -8,6 +8,7 @@ import (
 	"ecommerce-go/internal/auth"
 	"ecommerce-go/internal/database"
 	"ecommerce-go/internal/orders"
+	"ecommerce-go/internal/products"
 )
 
 func main() {
@@ -24,6 +25,10 @@ func main() {
 	}
 
 	log.Println("Table users prête")
+
+	if err := products.InitSchema(db); err != nil {
+		log.Fatal("Erreur initialisation de la table products :", err)
+	}
 
 	// Routeur HTTP
 	mux := http.NewServeMux()
