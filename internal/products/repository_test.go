@@ -4,6 +4,7 @@ import (
 	"database/sql"
 	"errors"
 	"regexp"
+	"slices"
 	"testing"
 
 	_ "modernc.org/sqlite"
@@ -100,5 +101,54 @@ func TestGetProductNotFound(t *testing.T) {
 
 	if _, err := GetProduct(db, 1); !errors.Is(err, ErrProductNotFound) {
 		t.Fatalf("erreur = %v, attendu %v", err, ErrProductNotFound)
+	}
+}
+
+func TestSearchProducts(t *testing.T) {
+	db := openTestDB(t)
+	inputs := []Product{
+		{Name: "Clavier USB", Description: "Touches silencieuses", Category: "Informatique", PriceHTCents: 2500, PriceTTCCents: 3000},
+		{Name: "Clavier Bluetooth", Description: "Touches rétroéclairées", Category: "Informatique", PriceHTCents: 3000, PriceTTCCents: 3600},
+		{Name: "Guide Go", Description: "Initiation au langage Go", Category: "Livres"},
+	}
+	var catalog []Product
+	for _, input := range inputs {
+		product, err := CreateProduct(db, input)
+		if err != nil {
+			t.Fatal(err)
+		}
+		catalog = append(catalog, product)
+	}
+
+	var price int64 = 3000
+	var zero int64
+	tests := []struct {
+		name    string
+		filters SearchFilters
+		want    []Product
+	}{
+		{"nom", SearchFilters{Name: "lavier"}, catalog[:2]},
+		{"description", SearchFilters{Description: "silencieu"}, catalog[:1]},
+		{"catégorie", SearchFilters{Category: "ivre"}, catalog[2:]},
+		{"prix HT", SearchFilters{PriceHTCents: &price}, catalog[1:2]},
+		{"prix TTC", SearchFilters{PriceTTCCents: &price}, catalog[:1]},
+		{"prix HT à zéro", SearchFilters{PriceHTCents: &zero}, catalog[2:]},
+		{"prix TTC à zéro", SearchFilters{PriceTTCCents: &zero}, catalog[2:]},
+		{"plusieurs critères", SearchFilters{Name: "Clavier", Category: "Info", PriceTTCCents: &price}, catalog[:1]},
+		{"critères incompatibles", SearchFilters{Name: "Clavier", Category: "Livres"}, nil},
+		{"aucun résultat", SearchFilters{Name: "Souris"}, nil},
+		{"aucun filtre", SearchFilters{}, catalog},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			got, err := SearchProducts(db, test.filters)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if got == nil || !slices.Equal(got, test.want) {
+				t.Fatalf("résultats = %#v, attendu %#v", got, test.want)
+			}
+		})
 	}
 }
