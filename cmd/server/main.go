@@ -34,6 +34,7 @@ func main() {
 	mux := http.NewServeMux()
 	auth.RegisterRoutes(mux, db)
 	orders.RegisterRoutes(mux, db)
+	products.RegisterRoutes(mux, db)
 
 	// Route de test
 	mux.HandleFunc("GET /health", func(w http.ResponseWriter, r *http.Request) {
