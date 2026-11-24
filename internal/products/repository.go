@@ -9,6 +9,11 @@ import (
 
 var ErrProductNotFound = errors.New("produit introuvable")
 
+var (
+	errRequiredProductFields = errors.New("le nom, la description et la catégorie sont obligatoires")
+	errNegativeProductPrice  = errors.New("les prix doivent être positifs ou nuls")
+)
+
 func InitSchema(db *sql.DB) error {
 	_, err := db.Exec(`
 		CREATE TABLE IF NOT EXISTS products (
@@ -34,10 +39,10 @@ func CreateProduct(db *sql.DB, product Product) (Product, error) {
 	product.Category = strings.TrimSpace(product.Category)
 
 	if product.Name == "" || product.Description == "" || product.Category == "" {
-		return Product{}, errors.New("le nom, la description et la catégorie sont obligatoires")
+		return Product{}, errRequiredProductFields
 	}
 	if product.PriceHTCents < 0 || product.PriceTTCCents < 0 {
-		return Product{}, errors.New("les prix doivent être positifs ou nuls")
+		return Product{}, errNegativeProductPrice
 	}
 
 	for range 5 {
