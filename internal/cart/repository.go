@@ -31,16 +31,42 @@ func InitSchema(db *sql.DB) error {
 	if err != nil {
 		return fmt.Errorf("initialisation des tables du panier : %w", err)
 	}
+
+	// L'index s'applique aussi aux bases où la table carts existe déjà.
+	_, err = db.Exec("CREATE UNIQUE INDEX IF NOT EXISTS carts_user_id_unique ON carts (user_id)")
+	if err != nil {
+		return fmt.Errorf("création de l'index unique sur carts.user_id : %w", err)
+	}
 	return nil
 }
 
+// CreateCart crée un panier vide ou renvoie le panier déjà associé à l'utilisateur.
 func CreateCart(db *sql.DB, userID int64) (Cart, error) {
 	cart := Cart{UserID: userID, Items: []CartItem{}}
-	err := db.QueryRow("INSERT INTO carts (user_id) VALUES (?) RETURNING id", userID).Scan(&cart.ID)
+	err := db.QueryRow(`
+		INSERT INTO carts (user_id) VALUES (?)
+		ON CONFLICT(user_id) DO NOTHING
+		RETURNING id
+	`, userID).Scan(&cart.ID)
+	if errors.Is(err, sql.ErrNoRows) {
+		return GetCartByUserID(db, userID)
+	}
 	if err != nil {
 		return Cart{}, fmt.Errorf("création du panier : %w", err)
 	}
 	return cart, nil
+}
+
+func GetCartByUserID(db *sql.DB, userID int64) (Cart, error) {
+	var cartID int64
+	err := db.QueryRow("SELECT id FROM carts WHERE user_id = ?", userID).Scan(&cartID)
+	if errors.Is(err, sql.ErrNoRows) {
+		return Cart{}, ErrCartNotFound
+	}
+	if err != nil {
+		return Cart{}, err
+	}
+	return GetCart(db, userID, cartID)
 }
 
 func AddItem(db *sql.DB, userID, cartID, productID, quantity int64) error {
