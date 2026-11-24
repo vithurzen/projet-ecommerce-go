@@ -21,9 +21,16 @@ type UserResponse struct {
 // Enregistrer les routes administrateur
 func RegisterRoutes(mux *http.ServeMux, db *sql.DB) {
 
+	// Afficher les utilisateurs
 	mux.Handle(
 		"GET /api/admin/users",
 		auth.RequireAdmin(db, listUsers(db)),
+	)
+
+	// Créer un utilisateur
+	mux.Handle(
+		"POST /api/admin/users",
+		auth.RequireAdmin(db, createUser(db)),
 	)
 }
 
