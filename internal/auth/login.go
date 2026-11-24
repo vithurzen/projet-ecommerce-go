@@ -125,68 +125,80 @@ func RegisterLoginRoutes(mux *http.ServeMux, db *sql.DB) {
 
 	// 2. Obtenir le compte connecté
 	mux.HandleFunc("GET /api/auth/me", func(w http.ResponseWriter, r *http.Request) {
-
-		parts := strings.Fields(r.Header.Get("Authorization"))
-
-		if len(parts) != 2 || !strings.EqualFold(parts[0], "Bearer") {
-			http.Error(w, "Token manquant", 401)
+		user, ok := ValidateSession(w, r, db)
+		if !ok {
 			return
 		}
 
-		token := parts[1]
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(map[string]interface{}{
+			"id":    user.ID,
+			"email": user.Email,
+			"role":  user.Role,
+		})
+	})
+}
 
-		// Vérifier le format du token
-		if len(token) != 64 {
-			http.Error(w, "Token invalide", 401)
-			return
-		}
+type SessionUser struct {
+	ID    int64
+	Email string
+	Role  string
+}
 
-		if _, err := hex.DecodeString(token); err != nil {
-			http.Error(w, "Token invalide", 401)
-			return
-		}
+// ValidateSession renvoie l'utilisateur connecté. En cas d'échec, elle écrit la réponse HTTP et renvoie false.
+func ValidateSession(w http.ResponseWriter, r *http.Request, db *sql.DB) (SessionUser, bool) {
+	parts := strings.Fields(r.Header.Get("Authorization"))
 
-		var userID int64
-		var email, role, expiration string
+	if len(parts) != 2 || !strings.EqualFold(parts[0], "Bearer") {
+		http.Error(w, "Token manquant", 401)
+		return SessionUser{}, false
+	}
 
-		err := db.QueryRowContext(r.Context(), `
+	token := parts[1]
+
+	// Vérifier le format du token
+	if len(token) != 64 {
+		http.Error(w, "Token invalide", 401)
+		return SessionUser{}, false
+	}
+
+	if _, err := hex.DecodeString(token); err != nil {
+		http.Error(w, "Token invalide", 401)
+		return SessionUser{}, false
+	}
+
+	var user SessionUser
+	var expiration string
+
+	err := db.QueryRowContext(r.Context(), `
             SELECT u.id, u.email, u.role, s.expires_at
             FROM sessions s
             JOIN users u ON u.id = s.user_id
             WHERE s.token_hash = ?
               AND u.confirmed = 1
-        `, sessionHash(token)).Scan(
-			&userID, &email, &role, &expiration,
-		)
+        `, sessionHash(token)).Scan(&user.ID, &user.Email, &user.Role, &expiration)
 
-		if errors.Is(err, sql.ErrNoRows) {
-			http.Error(w, "Session invalide", 401)
-			return
-		}
+	if errors.Is(err, sql.ErrNoRows) {
+		http.Error(w, "Session invalide", 401)
+		return SessionUser{}, false
+	}
 
-		if err != nil {
-			http.Error(w, "Erreur serveur", 500)
-			return
-		}
+	if err != nil {
+		http.Error(w, "Erreur serveur", 500)
+		return SessionUser{}, false
+	}
 
-		expiresAt, err := time.Parse(time.RFC3339, expiration)
+	expiresAt, err := time.Parse(time.RFC3339, expiration)
 
-		if err != nil {
-			http.Error(w, "Erreur serveur", 500)
-			return
-		}
+	if err != nil {
+		http.Error(w, "Erreur serveur", 500)
+		return SessionUser{}, false
+	}
 
-		if !time.Now().Before(expiresAt) {
-			http.Error(w, "Session expirée", 401)
-			return
-		}
+	if !time.Now().Before(expiresAt) {
+		http.Error(w, "Session expirée", 401)
+		return SessionUser{}, false
+	}
 
-		w.Header().Set("Content-Type", "application/json")
-
-		json.NewEncoder(w).Encode(map[string]interface{}{
-			"id":    userID,
-			"email": email,
-			"role":  role,
-		})
-	})
+	return user, true
 }
