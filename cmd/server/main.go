@@ -28,6 +28,7 @@ func main() {
 	// Routeur HTTP
 	mux := http.NewServeMux()
 	auth.RegisterRoutes(mux, db)
+	auth.RegisterLoginRoutes(mux, db)
 	orders.RegisterRoutes(mux, db)
 
 	// Route de test
