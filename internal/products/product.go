@@ -3,13 +3,13 @@ package products
 import "math/rand/v2"
 
 type Product struct {
-	ID            int64
-	Reference     string
-	Name          string
-	Description   string
-	Category      string
-	PriceHTCents  int64
-	PriceTTCCents int64
+	ID            int64  `json:"id"`
+	Reference     string `json:"reference"`
+	Name          string `json:"name"`
+	Description   string `json:"description"`
+	Category      string `json:"category"`
+	PriceHTCents  int64  `json:"price_ht_cents"`
+	PriceTTCCents int64  `json:"price_ttc_cents"`
 }
 
 func newReference() string {
