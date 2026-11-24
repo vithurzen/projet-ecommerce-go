@@ -171,6 +171,31 @@ func ValidateSession(w http.ResponseWriter, r *http.Request, db *sql.DB) (Sessio
 	var expiration string
 
 	err := db.QueryRowContext(r.Context(), `
+
+		parts := strings.Fields(r.Header.Get("Authorization"))
+
+		if len(parts) != 2 || !strings.EqualFold(parts[0], "Bearer") {
+			http.Error(w, "Token manquant", 401)
+			return
+		}
+
+		token := parts[1]
+
+		// Vérifier le format du token
+		if len(token) != 64 {
+			http.Error(w, "Token invalide", 401)
+			return
+		}
+
+		if _, err := hex.DecodeString(token); err != nil {
+			http.Error(w, "Token invalide", 401)
+			return
+		}
+
+		var userID int64
+		var email, role, expiration string
+
+		err := db.QueryRowContext(r.Context(), `
             SELECT u.id, u.email, u.role, s.expires_at
             FROM sessions s
             JOIN users u ON u.id = s.user_id
@@ -201,4 +226,38 @@ func ValidateSession(w http.ResponseWriter, r *http.Request, db *sql.DB) (Sessio
 	}
 
 	return user, true
+        `, sessionHash(token)).Scan(
+			&userID, &email, &role, &expiration,
+		)
+
+		if errors.Is(err, sql.ErrNoRows) {
+			http.Error(w, "Session invalide", 401)
+			return
+		}
+
+		if err != nil {
+			http.Error(w, "Erreur serveur", 500)
+			return
+		}
+
+		expiresAt, err := time.Parse(time.RFC3339, expiration)
+
+		if err != nil {
+			http.Error(w, "Erreur serveur", 500)
+			return
+		}
+
+		if !time.Now().Before(expiresAt) {
+			http.Error(w, "Session expirée", 401)
+			return
+		}
+
+		w.Header().Set("Content-Type", "application/json")
+
+		json.NewEncoder(w).Encode(map[string]interface{}{
+			"id":    userID,
+			"email": email,
+			"role":  role,
+		})
+	})
 }
