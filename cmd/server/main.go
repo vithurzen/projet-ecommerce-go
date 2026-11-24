@@ -6,8 +6,10 @@ import (
 	"net/http"
 
 	"ecommerce-go/internal/auth"
+	"ecommerce-go/internal/cart"
 	"ecommerce-go/internal/database"
 	"ecommerce-go/internal/orders"
+	"ecommerce-go/internal/products"
 	"ecommerce-go/internal/users"
 )
 
@@ -26,11 +28,20 @@ func main() {
 
 	log.Println("Table users prête")
 
+	if err := products.InitSchema(db); err != nil {
+		log.Fatal("Erreur initialisation de la table products :", err)
+	}
+
+	if err := cart.InitSchema(db); err != nil {
+		log.Fatal("Erreur initialisation des tables du panier :", err)
+	}
+
 	// Routeur HTTP
 	mux := http.NewServeMux()
 	auth.RegisterRoutes(mux, db)
 	auth.RegisterLoginRoutes(mux, db)
 	orders.RegisterRoutes(mux, db)
+	products.RegisterRoutes(mux, db)
 	auth.RegisterPasswordResetRoutes(mux, db)
 	users.RegisterRoutes(mux, db)
 
