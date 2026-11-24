@@ -51,6 +51,14 @@ func InitSchema(db *sql.DB) error {
 	}
 
 	_, err = db.Exec(`
+		CREATE TABLE IF NOT EXISTS sessions (
+			id INTEGER PRIMARY KEY AUTOINCREMENT,
+
+			user_id INTEGER NOT NULL,
+
+			token_hash TEXT NOT NULL UNIQUE,
+
+			expires_at TEXT NOT NULL,
 		CREATE TABLE IF NOT EXISTS orders (
 			id INTEGER PRIMARY KEY AUTOINCREMENT,
 			reference TEXT NOT NULL UNIQUE,
@@ -67,6 +75,7 @@ func InitSchema(db *sql.DB) error {
 	`)
 
 	if err != nil {
+		return fmt.Errorf("creation table sessions : %w", err)
 		return fmt.Errorf("creation table orders : %w", err)
 	}
 
