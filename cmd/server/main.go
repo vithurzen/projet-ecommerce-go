@@ -42,6 +42,7 @@ func main() {
 	auth.RegisterLoginRoutes(mux, db)
 	orders.RegisterRoutes(mux, db)
 	products.RegisterRoutes(mux, db)
+	cart.RegisterRoutes(mux, db)
 	auth.RegisterPasswordResetRoutes(mux, db)
 	users.RegisterRoutes(mux, db)
 
