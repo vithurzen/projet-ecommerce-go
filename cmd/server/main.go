@@ -10,6 +10,7 @@ import (
 	"ecommerce-go/internal/database"
 	"ecommerce-go/internal/orders"
 	"ecommerce-go/internal/products"
+	"ecommerce-go/internal/users"
 )
 
 func main() {
@@ -42,6 +43,8 @@ func main() {
 	orders.RegisterRoutes(mux, db)
 	products.RegisterRoutes(mux, db)
 	cart.RegisterRoutes(mux, db)
+	auth.RegisterPasswordResetRoutes(mux, db)
+	users.RegisterRoutes(mux, db)
 
 	// Route de test
 	mux.HandleFunc("GET /health", func(w http.ResponseWriter, r *http.Request) {
