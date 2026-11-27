@@ -38,6 +38,11 @@ func RegisterRoutes(mux *http.ServeMux, db *sql.DB) {
 		"PATCH /api/admin/users/{id}/confirm",
 		auth.RequireAdmin(db, confirmUser(db)),
 	)
+
+	mux.Handle(
+		"PATCH /api/admin/users/{id}",
+		auth.RequireAdmin(db, updateUser(db)),
+	)
 }
 
 // Afficher tous les utilisateurs
