@@ -43,6 +43,11 @@ func RegisterRoutes(mux *http.ServeMux, db *sql.DB) {
 		"PATCH /api/admin/users/{id}",
 		auth.RequireAdmin(db, updateUser(db)),
 	)
+
+	mux.Handle(
+		"DELETE /api/admin/users/{id}",
+		auth.RequireAdmin(db, deleteUser(db)),
+	)
 }
 
 // Afficher tous les utilisateurs
