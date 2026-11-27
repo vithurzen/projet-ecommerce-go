@@ -45,6 +45,7 @@ func main() {
 	cart.RegisterRoutes(mux, db)
 	auth.RegisterPasswordResetRoutes(mux, db)
 	users.RegisterRoutes(mux, db)
+	auth.RegisterLogoutRoutes(mux, db)
 
 	// Route de test
 	mux.HandleFunc("GET /health", func(w http.ResponseWriter, r *http.Request) {
